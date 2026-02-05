@@ -86,3 +86,9 @@
   border-radius: 4px;
   white-space: nowrap;
 }
+
+/* Selected source node when connecting */
+.selectedSource :global(.react-flow__node) {
+  box-shadow: 0 0 0 4px #22c55e !important;
+  border-color: #22c55e !important;
+}

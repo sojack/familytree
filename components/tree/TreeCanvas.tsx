@@ -33,7 +33,6 @@ const nodeTypes = {
 }
 
 export default function TreeCanvas({ initialMembers, initialRelationships, userId }: TreeCanvasProps) {
-  // Convert members to React Flow nodes
   const initialNodes: Node[] = useMemo(() => {
     return initialMembers.map((member, index) => ({
       id: member.id,
@@ -42,11 +41,10 @@ export default function TreeCanvas({ initialMembers, initialRelationships, userI
         x: 100 + (index % 3) * 250, 
         y: 100 + Math.floor(index / 3) * 150 
       },
-      data: { member },
+      data: { member, isSelectedSource: false },
     }))
   }, [initialMembers])
 
-  // Convert relationships to React Flow edges
   const initialEdges: Edge[] = useMemo(() => {
     return initialRelationships.map((rel) => ({
       id: rel.id,
@@ -70,18 +68,17 @@ export default function TreeCanvas({ initialMembers, initialRelationships, userI
   const [editingMember, setEditingMember] = useState<Member | null>(null)
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null)
   const [connectMode, setConnectMode] = useState<'parent' | 'spouse' | null>(null)
+  const [selectedSource, setSelectedSource] = useState<string | null>(null)
 
   const onInit = useCallback((instance: ReactFlowInstance) => {
     setReactFlowInstance(instance)
     instance.fitView({ padding: 0.2 })
   }, [])
 
-  // Update nodes when initialMembers change (from server)
   useEffect(() => {
     setNodes(initialNodes)
   }, [initialMembers, setNodes])
 
-  // Update edges when initialRelationships change (from server)
   useEffect(() => {
     setEdges(initialEdges)
   }, [initialRelationships, setEdges])
@@ -111,7 +108,7 @@ export default function TreeCanvas({ initialMembers, initialRelationships, userI
       id: data.id,
       type: 'memberNode',
       position: { x: newX, y: newY },
-      data: { member: data },
+      data: { member: data, isSelectedSource: false },
     }
 
     setNodes((nds) => [...nds, newNode])
@@ -154,7 +151,6 @@ export default function TreeCanvas({ initialMembers, initialRelationships, userI
   const handleDeleteMember = async (id: string) => {
     const supabase = createClient()
 
-    // Delete related relationships first
     await supabase
       .from('relationships')
       .delete()
@@ -177,39 +173,35 @@ export default function TreeCanvas({ initialMembers, initialRelationships, userI
     setEditingMember(null)
   }
 
-  // Handle creating relationships by connecting nodes
-  const onConnect = useCallback(async (connection: Connection) => {
-    if (!connectMode || !connection.source || !connection.target) {
-      // If not in connect mode, don't create edges
+  const createRelationship = useCallback(async (sourceId: string, targetId: string) => {
+    if (!connectMode) return
+
+    if (sourceId === targetId) {
+      alert('Cannot connect a person to themselves!')
+      setSelectedSource(null)
+      return
+    }
+
+    const existingEdge = edges.find(
+      e => 
+        (e.source === sourceId && e.target === targetId) ||
+        (e.source === targetId && e.target === sourceId)
+    )
+    
+    if (existingEdge) {
+      alert('These people are already connected!')
+      setSelectedSource(null)
       return
     }
 
     const supabase = createClient()
 
-    // Prevent self-connections
-    if (connection.source === connection.target) {
-      alert('Cannot connect a person to themselves!')
-      return
-    }
-
-    // Check if relationship already exists
-    const existingEdge = edges.find(
-      e => 
-        (e.source === connection.source && e.target === connection.target) ||
-        (e.source === connection.target && e.target === connection.source)
-    )
-    
-    if (existingEdge) {
-      alert('These people are already connected!')
-      return
-    }
-
     const { data, error } = await supabase
       .from('relationships')
       .insert({
         user_id: userId,
-        source_id: connection.source,
-        target_id: connection.target,
+        source_id: sourceId,
+        target_id: targetId,
         type: connectMode,
       })
       .select()
@@ -220,13 +212,14 @@ export default function TreeCanvas({ initialMembers, initialRelationships, userI
       if (error.code === '23505') {
         alert('This relationship already exists!')
       }
+      setSelectedSource(null)
       return
     }
 
     const newEdge: Edge = {
       id: data.id,
-      source: connection.source,
-      target: connection.target,
+      source: sourceId,
+      target: targetId,
       type: 'smoothstep',
       animated: connectMode === 'spouse',
       style: {
@@ -239,10 +232,43 @@ export default function TreeCanvas({ initialMembers, initialRelationships, userI
     }
 
     setEdges((eds) => addEdge(newEdge, eds))
-    setConnectMode(null) // Exit connect mode after creating
+    setSelectedSource(null)
+    setConnectMode(null)
+    
+    // Reset the isSelectedSource flag on all nodes
+    setNodes((nds) =>
+      nds.map((node) => ({ ...node, data: { ...node.data, isSelectedSource: false } }))
+    )
   }, [connectMode, edges, userId])
 
-  // Add handlers to each node's data
+  const onConnect = useCallback((connection: Connection) => {
+    if (!connectMode) {
+      alert('Please select a connection type first (Parent or Spouse)')
+      return
+    }
+    
+    if (connection.source && connection.target) {
+      createRelationship(connection.source, connection.target)
+    }
+  }, [connectMode, createRelationship])
+
+  const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
+    if (!connectMode) return
+
+    if (!selectedSource) {
+      setSelectedSource(node.id)
+      // Highlight this node as selected
+      setNodes((nds) =>
+        nds.map((n) => ({
+          ...n,
+          data: { ...n.data, isSelectedSource: n.id === node.id },
+        }))
+      )
+    } else if (selectedSource !== node.id) {
+      createRelationship(selectedSource, node.id)
+    }
+  }, [connectMode, selectedSource, createRelationship])
+
   const nodesWithHandlers = useMemo(() => {
     return nodes.map((node) => ({
       ...node,
@@ -265,6 +291,7 @@ export default function TreeCanvas({ initialMembers, initialRelationships, userI
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onNodeClick={onNodeClick}
         onInit={onInit}
         nodeTypes={nodeTypes}
         fitView
@@ -281,25 +308,36 @@ export default function TreeCanvas({ initialMembers, initialRelationships, userI
         />
       </ReactFlow>
 
-      {/* Connection Mode Toolbar */}
       <div className={styles.toolbar}>
         <button
           className={`${styles.toolbarButton} ${connectMode === 'parent' ? styles.active : ''}`}
-          onClick={() => setConnectMode(connectMode === 'parent' ? null : 'parent')}
-          title="Connect Parent → Child"
+          onClick={() => {
+            setConnectMode(connectMode === 'parent' ? null : 'parent')
+            setSelectedSource(null)
+            setNodes((nds) =>
+              nds.map((node) => ({ ...node, data: { ...node.data, isSelectedSource: false } }))
+            )
+          }}
         >
           👨‍👧 Parent
         </button>
         <button
           className={`${styles.toolbarButton} ${connectMode === 'spouse' ? styles.active : ''}`}
-          onClick={() => setConnectMode(connectMode === 'spouse' ? null : 'spouse')}
-          title="Connect Spouses"
+          onClick={() => {
+            setConnectMode(connectMode === 'spouse' ? null : 'spouse')
+            setSelectedSource(null)
+            setNodes((nds) =>
+              nds.map((node) => ({ ...node, data: { ...node.data, isSelectedSource: false } }))
+            )
+          }}
         >
           ❤️ Spouse
         </button>
         {connectMode && (
           <span className={styles.connectHint}>
-            Drag from one person to another
+            {selectedSource 
+              ? 'Click another person to connect' 
+              : 'Click a person to start'}
           </span>
         )}
       </div>

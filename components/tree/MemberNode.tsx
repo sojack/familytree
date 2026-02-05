@@ -6,21 +6,20 @@ import styles from './MemberNode.module.css'
 
 interface MemberNodeData {
   member: Member
+  isSelectedSource: boolean
   onEdit: (member: Member) => void
   onDelete: (id: string) => void
 }
 
 export default function MemberNodeComponent({ data, selected }: NodeProps<MemberNodeData>) {
-  const { member, onEdit, onDelete } = data
+  const { member, isSelectedSource, onEdit, onDelete } = data
   
   return (
-    <div className={`${styles.node} ${selected ? styles.selected : ''}`}>
-      {/* Top handle - for parent connections (child connects here) */}
+    <div className={`${styles.node} ${selected ? styles.selected : ''} ${isSelectedSource ? styles.selectedSource : ''}`}>
       <Handle 
         type="target" 
         position={Position.Top} 
         className={styles.handle}
-        id="parent"
       />
       
       <div className={styles.content}>
@@ -58,26 +57,10 @@ export default function MemberNodeComponent({ data, selected }: NodeProps<Member
         </button>
       </div>
       
-      {/* Bottom handle - for child connections (parent connects from here) */}
       <Handle 
         type="source" 
         position={Position.Bottom} 
         className={styles.handle}
-        id="child"
-      />
-      
-      {/* Side handles for spouses */}
-      <Handle 
-        type="source" 
-        position={Position.Left} 
-        className={`${styles.handle} ${styles.handleSide}`}
-        id="spouse-left"
-      />
-      <Handle 
-        type="target" 
-        position={Position.Right} 
-        className={`${styles.handle} ${styles.handleSide}`}
-        id="spouse-right"
       />
     </div>
   )

@@ -25,6 +25,21 @@
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3);
 }
 
+.node.selectedSource {
+  border-color: #22c55e;
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.4);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(34, 197, 94, 0.2);
+  }
+}
+
 .content {
   display: flex;
   flex-direction: column;
@@ -43,6 +58,10 @@
   justify-content: center;
   font-size: 1.25rem;
   font-weight: 600;
+}
+
+.node.selectedSource .avatar {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
 }
 
 .info {
@@ -114,35 +133,26 @@
   transform: scale(1.1);
 }
 
+/* Handles - visible by default */
 .handle {
-  width: 10px;
-  height: 10px;
+  width: 14px;
+  height: 14px;
   background: #667eea;
-  border: 2px solid white;
+  border: 3px solid white;
   border-radius: 50%;
-  opacity: 0;
-  transition: opacity 0.2s, transform 0.2s;
-}
-
-.node:hover .handle {
-  opacity: 1;
+  opacity: 0.8;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .handle:hover {
-  transform: scale(1.5);
-  background: #764ba2;
-}
-
-/* Always show handles when node is selected */
-.node.selected .handle {
   opacity: 1;
+  transform: scale(1.4);
+  background: #764ba2;
+  box-shadow: 0 4px 8px rgba(102, 126, 234, 0.4);
 }
 
-.handleSide {
-  top: 50%;
-  transform: translateY(-50%);
-}
-
-.handleSide:hover {
-  transform: translateY(-50%) scale(1.5);
+.node.selectedSource .handle {
+  background: #22c55e;
+  opacity: 1;
 }
