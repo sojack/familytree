@@ -86,24 +86,3 @@
   border-radius: 4px;
   white-space: nowrap;
 }
-
-/* React Flow edge customization */
-:global(.react-flow__edge-path) {
-  stroke-width: 2;
-}
-
-:global(.react-flow__edge.animated path) {
-  stroke-dasharray: 5;
-  animation: dashdraw 0.5s linear infinite;
-}
-
-@keyframes dashdraw {
-  from {
-    stroke-dashoffset: 10;
-  }
-}
-
-:global(.react-flow__connectionline) {
-  stroke: #667eea;
-  stroke-width: 2;
-}
