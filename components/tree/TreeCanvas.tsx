@@ -7,10 +7,8 @@ import ReactFlow, {
   MiniMap,
   useNodesState,
   useEdgesState,
-  addEdge,
   type Node,
   type Edge,
-  type Connection,
   type ReactFlowInstance,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
@@ -173,15 +171,22 @@ export default function TreeCanvas({ initialMembers, initialRelationships, userI
     setEditingMember(null)
   }
 
-  const createRelationship = useCallback(async (sourceId: string, targetId: string) => {
-    if (!connectMode) return
-
-    if (sourceId === targetId) {
-      alert('Cannot connect a person to themselves!')
-      setSelectedSource(null)
+  // SIMPLIFIED: Create relationship directly
+  const createRelationship = async (sourceId: string, targetId: string) => {
+    console.log('Creating relationship:', { sourceId, targetId, connectMode })
+    
+    if (!connectMode) {
+      console.log('No connect mode set')
       return
     }
 
+    if (sourceId === targetId) {
+      alert('Cannot connect a person to themselves!')
+      resetConnectionState()
+      return
+    }
+
+    // Check if relationship already exists
     const existingEdge = edges.find(
       e => 
         (e.source === sourceId && e.target === targetId) ||
@@ -190,12 +195,13 @@ export default function TreeCanvas({ initialMembers, initialRelationships, userI
     
     if (existingEdge) {
       alert('These people are already connected!')
-      setSelectedSource(null)
+      resetConnectionState()
       return
     }
 
     const supabase = createClient()
 
+    console.log('Inserting to database...')
     const { data, error } = await supabase
       .from('relationships')
       .insert({
@@ -208,14 +214,15 @@ export default function TreeCanvas({ initialMembers, initialRelationships, userI
       .single()
 
     if (error) {
-      console.error('Error creating relationship:', error)
-      if (error.code === '23505') {
-        alert('This relationship already exists!')
-      }
-      setSelectedSource(null)
+      console.error('Database error:', error)
+      alert('Error creating relationship: ' + error.message)
+      resetConnectionState()
       return
     }
 
+    console.log('Database success:', data)
+
+    // Add edge to React Flow
     const newEdge: Edge = {
       id: data.id,
       source: sourceId,
@@ -231,33 +238,34 @@ export default function TreeCanvas({ initialMembers, initialRelationships, userI
       data: { type: connectMode },
     }
 
-    setEdges((eds) => addEdge(newEdge, eds))
+    console.log('Adding edge:', newEdge)
+    setEdges((eds) => [...eds, newEdge])
+    resetConnectionState()
+  }
+
+  const resetConnectionState = () => {
     setSelectedSource(null)
     setConnectMode(null)
-    
-    // Reset the isSelectedSource flag on all nodes
     setNodes((nds) =>
       nds.map((node) => ({ ...node, data: { ...node.data, isSelectedSource: false } }))
     )
-  }, [connectMode, edges, userId])
+  }
 
-  const onConnect = useCallback((connection: Connection) => {
+  // Handle node click for connections
+  const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
+    console.log('Node clicked:', node.id, 'connectMode:', connectMode, 'selectedSource:', selectedSource)
+    
     if (!connectMode) {
-      alert('Please select a connection type first (Parent or Spouse)')
+      console.log('No connect mode, ignoring click')
       return
     }
-    
-    if (connection.source && connection.target) {
-      createRelationship(connection.source, connection.target)
-    }
-  }, [connectMode, createRelationship])
 
-  const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
-    if (!connectMode) return
+    event.stopPropagation()
 
     if (!selectedSource) {
+      // First click - select source
+      console.log('Selecting source:', node.id)
       setSelectedSource(node.id)
-      // Highlight this node as selected
       setNodes((nds) =>
         nds.map((n) => ({
           ...n,
@@ -265,9 +273,21 @@ export default function TreeCanvas({ initialMembers, initialRelationships, userI
         }))
       )
     } else if (selectedSource !== node.id) {
+      // Second click - create connection
+      console.log('Creating connection from', selectedSource, 'to', node.id)
       createRelationship(selectedSource, node.id)
+    } else {
+      console.log('Clicked same node, ignoring')
     }
-  }, [connectMode, selectedSource, createRelationship])
+  }, [connectMode, selectedSource])
+
+  // Handle canvas click to cancel
+  const onPaneClick = useCallback(() => {
+    if (connectMode) {
+      console.log('Canvas clicked, canceling connection mode')
+      resetConnectionState()
+    }
+  }, [connectMode])
 
   const nodesWithHandlers = useMemo(() => {
     return nodes.map((node) => ({
@@ -290,8 +310,8 @@ export default function TreeCanvas({ initialMembers, initialRelationships, userI
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
         onNodeClick={onNodeClick}
+        onPaneClick={onPaneClick}
         onInit={onInit}
         nodeTypes={nodeTypes}
         fitView
@@ -312,11 +332,12 @@ export default function TreeCanvas({ initialMembers, initialRelationships, userI
         <button
           className={`${styles.toolbarButton} ${connectMode === 'parent' ? styles.active : ''}`}
           onClick={() => {
-            setConnectMode(connectMode === 'parent' ? null : 'parent')
-            setSelectedSource(null)
-            setNodes((nds) =>
-              nds.map((node) => ({ ...node, data: { ...node.data, isSelectedSource: false } }))
-            )
+            if (connectMode === 'parent') {
+              resetConnectionState()
+            } else {
+              setConnectMode('parent')
+              setSelectedSource(null)
+            }
           }}
         >
           👨‍👧 Parent
@@ -324,11 +345,12 @@ export default function TreeCanvas({ initialMembers, initialRelationships, userI
         <button
           className={`${styles.toolbarButton} ${connectMode === 'spouse' ? styles.active : ''}`}
           onClick={() => {
-            setConnectMode(connectMode === 'spouse' ? null : 'spouse')
-            setSelectedSource(null)
-            setNodes((nds) =>
-              nds.map((node) => ({ ...node, data: { ...node.data, isSelectedSource: false } }))
-            )
+            if (connectMode === 'spouse') {
+              resetConnectionState()
+            } else {
+              setConnectMode('spouse')
+              setSelectedSource(null)
+            }
           }}
         >
           ❤️ Spouse
