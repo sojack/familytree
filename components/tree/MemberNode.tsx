@@ -10,12 +10,18 @@ interface MemberNodeData {
   onDelete: (id: string) => void
 }
 
-export default function MemberNodeComponent({ data }: NodeProps<MemberNodeData>) {
+export default function MemberNodeComponent({ data, selected }: NodeProps<MemberNodeData>) {
   const { member, onEdit, onDelete } = data
   
   return (
-    <div className={styles.node}>
-      <Handle type="target" position={Position.Top} className={styles.handle} />
+    <div className={`${styles.node} ${selected ? styles.selected : ''}`}>
+      {/* Top handle - for parent connections (child connects here) */}
+      <Handle 
+        type="target" 
+        position={Position.Top} 
+        className={styles.handle}
+        id="parent"
+      />
       
       <div className={styles.content}>
         <div className={styles.avatar}>
@@ -52,7 +58,27 @@ export default function MemberNodeComponent({ data }: NodeProps<MemberNodeData>)
         </button>
       </div>
       
-      <Handle type="source" position={Position.Bottom} className={styles.handle} />
+      {/* Bottom handle - for child connections (parent connects from here) */}
+      <Handle 
+        type="source" 
+        position={Position.Bottom} 
+        className={styles.handle}
+        id="child"
+      />
+      
+      {/* Side handles for spouses */}
+      <Handle 
+        type="source" 
+        position={Position.Left} 
+        className={`${styles.handle} ${styles.handleSide}`}
+        id="spouse-left"
+      />
+      <Handle 
+        type="target" 
+        position={Position.Right} 
+        className={`${styles.handle} ${styles.handleSide}`}
+        id="spouse-right"
+      />
     </div>
   )
 }

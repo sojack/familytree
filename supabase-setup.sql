@@ -13,57 +13,69 @@ CREATE TABLE IF NOT EXISTS members (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 2. Enable Row Level Security (RLS)
+-- 2. Create the relationships table
+-- Stores connections between family members (parent, spouse, etc.)
+CREATE TABLE IF NOT EXISTS relationships (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    source_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    target_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    type TEXT NOT NULL CHECK (type IN ('parent', 'spouse')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    -- Prevent duplicate relationships
+    UNIQUE(source_id, target_id, type)
+);
+
+-- 3. Enable Row Level Security (RLS)
 ALTER TABLE members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE relationships ENABLE ROW LEVEL SECURITY;
 
--- 3. Create RLS Policies
-
--- Policy: Users can only SELECT their own members
+-- 4. Create RLS Policies for members
 CREATE POLICY "Users can view own members"
     ON members
     FOR SELECT
     USING (auth.uid() = user_id);
 
--- Policy: Users can only INSERT their own members
 CREATE POLICY "Users can insert own members"
     ON members
     FOR INSERT
     WITH CHECK (auth.uid() = user_id);
 
--- Policy: Users can only UPDATE their own members
 CREATE POLICY "Users can update own members"
     ON members
     FOR UPDATE
     USING (auth.uid() = user_id)
     WITH CHECK (auth.uid() = user_id);
 
--- Policy: Users can only DELETE their own members
 CREATE POLICY "Users can delete own members"
     ON members
     FOR DELETE
     USING (auth.uid() = user_id);
 
--- 4. Create indexes for better performance
+-- 5. Create RLS Policies for relationships
+CREATE POLICY "Users can view own relationships"
+    ON relationships
+    FOR SELECT
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own relationships"
+    ON relationships
+    FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own relationships"
+    ON relationships
+    FOR DELETE
+    USING (auth.uid() = user_id);
+
+-- 6. Create indexes for performance
 CREATE INDEX idx_members_user_id ON members(user_id);
 CREATE INDEX idx_members_created_at ON members(created_at);
-
--- 5. Optional: Add some sample data for testing
--- (Remove these if you don't want test data)
--- INSERT INTO members (user_id, name, birth_year)
--- SELECT 
---     auth.uid(),  -- Only works if you run this while logged in via SQL Editor
---     'Grandma Rose',
---     1950;
+CREATE INDEX idx_relationships_user_id ON relationships(user_id);
+CREATE INDEX idx_relationships_source ON relationships(source_id);
+CREATE INDEX idx_relationships_target ON relationships(target_id);
 
 -- ============================================
--- Verification Queries (run these to check)
+-- Migration: Add relationships to existing setup
 -- ============================================
-
--- Check table structure
--- SELECT * FROM information_schema.columns WHERE table_name = 'members';
-
--- Check RLS is enabled
--- SELECT relname, relrowsecurity FROM pg_class WHERE relname = 'members';
-
--- List all policies
--- SELECT * FROM pg_policies WHERE tablename = 'members';
+-- If you already have the members table, just run sections 2, 5, and 6

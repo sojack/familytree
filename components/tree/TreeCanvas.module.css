@@ -38,3 +38,72 @@
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
+
+/* Toolbar for connection modes */
+.toolbar {
+  position: absolute;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  background: white;
+  padding: 0.5rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+}
+
+.toolbarButton {
+  padding: 0.5rem 1rem;
+  background: #f3f4f6;
+  color: #374151;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.toolbarButton:hover {
+  background: #e5e7eb;
+}
+
+.toolbarButton.active {
+  background: #667eea;
+  color: white;
+  border-color: #764ba2;
+}
+
+.connectHint {
+  font-size: 0.8rem;
+  color: #667eea;
+  margin-left: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  background: #e0e7ff;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+/* React Flow edge customization */
+:global(.react-flow__edge-path) {
+  stroke-width: 2;
+}
+
+:global(.react-flow__edge.animated path) {
+  stroke-dasharray: 5;
+  animation: dashdraw 0.5s linear infinite;
+}
+
+@keyframes dashdraw {
+  from {
+    stroke-dashoffset: 10;
+  }
+}
+
+:global(.react-flow__connectionline) {
+  stroke: #667eea;
+  stroke-width: 2;
+}

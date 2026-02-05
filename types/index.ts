@@ -6,6 +6,15 @@ export interface Member {
   created_at: string
 }
 
+export interface Relationship {
+  id: string
+  user_id: string
+  source_id: string
+  target_id: string
+  type: 'parent' | 'spouse'
+  created_at: string
+}
+
 export interface MemberNode {
   id: string
   type: 'memberNode'

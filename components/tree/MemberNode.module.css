@@ -20,6 +20,11 @@
   visibility: visible;
 }
 
+.node.selected {
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3);
+}
+
 .content {
   display: flex;
   flex-direction: column;
@@ -110,8 +115,34 @@
 }
 
 .handle {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   background: #667eea;
   border: 2px solid white;
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.node:hover .handle {
+  opacity: 1;
+}
+
+.handle:hover {
+  transform: scale(1.5);
+  background: #764ba2;
+}
+
+/* Always show handles when node is selected */
+.node.selected .handle {
+  opacity: 1;
+}
+
+.handleSide {
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.handleSide:hover {
+  transform: translateY(-50%) scale(1.5);
 }
