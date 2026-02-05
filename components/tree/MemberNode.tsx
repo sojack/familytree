@@ -6,10 +6,12 @@ import styles from './MemberNode.module.css'
 
 interface MemberNodeData {
   member: Member
+  onEdit: (member: Member) => void
+  onDelete: (id: string) => void
 }
 
 export default function MemberNodeComponent({ data }: NodeProps<MemberNodeData>) {
-  const { member } = data
+  const { member, onEdit, onDelete } = data
   
   return (
     <div className={styles.node}>
@@ -25,6 +27,29 @@ export default function MemberNodeComponent({ data }: NodeProps<MemberNodeData>)
             <p className={styles.birthYear}>b. {member.birth_year}</p>
           )}
         </div>
+      </div>
+      
+      <div className={styles.actions}>
+        <button 
+          className={styles.editButton}
+          onClick={(e) => {
+            e.stopPropagation()
+            onEdit(member)
+          }}
+          title="Edit"
+        >
+          ✎
+        </button>
+        <button 
+          className={styles.deleteButton}
+          onClick={(e) => {
+            e.stopPropagation()
+            onDelete(member.id)
+          }}
+          title="Delete"
+        >
+          ×
+        </button>
       </div>
       
       <Handle type="source" position={Position.Bottom} className={styles.handle} />

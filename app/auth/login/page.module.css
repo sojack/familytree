@@ -93,3 +93,13 @@
   font-size: 0.9rem;
   text-align: center;
 }
+
+.error {
+  margin-top: 1rem;
+  padding: 0.875rem;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #dc2626;
+  font-size: 0.9rem;
+  text-align: center;
+}

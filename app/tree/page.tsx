@@ -5,18 +5,31 @@ import styles from './page.module.css'
 
 export default async function TreePage() {
   const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  
+  // Get user with error handling
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  
+  if (authError) {
+    console.error('Auth error:', authError.message)
+  }
 
   if (!user) {
+    console.log('No user found, redirecting to login')
     redirect('/auth/login')
   }
 
+  console.log('User authenticated:', user.email)
+
   // Fetch members for this user
-  const { data: members } = await supabase
+  const { data: members, error: membersError } = await supabase
     .from('members')
     .select('*')
     .eq('user_id', user.id)
     .order('created_at', { ascending: true })
+
+  if (membersError) {
+    console.error('Members fetch error:', membersError.message)
+  }
 
   return (
     <div className={styles.container}>

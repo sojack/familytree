@@ -14,9 +14,10 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 
 import { createClient } from '@/lib/supabase/client'
-import { Member, MemberNode } from '@/types'
+import { Member } from '@/types'
 import MemberNodeComponent from './MemberNode'
 import AddMemberModal from './AddMemberModal'
+import EditMemberModal from './EditMemberModal'
 import styles from './TreeCanvas.module.css'
 
 interface TreeCanvasProps {
@@ -44,7 +45,8 @@ export default function TreeCanvas({ initialMembers, userId }: TreeCanvasProps) 
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
-  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [editingMember, setEditingMember] = useState<Member | null>(null)
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null)
 
   const onInit = useCallback((instance: ReactFlowInstance) => {
@@ -82,18 +84,82 @@ export default function TreeCanvas({ initialMembers, userId }: TreeCanvasProps) 
     }
 
     setNodes((nds) => [...nds, newNode])
-    setIsModalOpen(false)
+    setIsAddModalOpen(false)
 
-    // Center view on new node after a short delay
     setTimeout(() => {
       reactFlowInstance?.fitView({ padding: 0.2 })
     }, 100)
   }
 
+  const handleEditMember = async (id: string, name: string, birthYear: string) => {
+    const supabase = createClient()
+
+    const { data, error } = await supabase
+      .from('members')
+      .update({
+        name,
+        birth_year: birthYear ? parseInt(birthYear) : null,
+      })
+      .eq('id', id)
+      .eq('user_id', userId)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error updating member:', error)
+      return
+    }
+
+    // Update the node in the canvas
+    setNodes((nds) =>
+      nds.map((node) =>
+        node.id === id
+          ? { ...node, data: { ...node.data, member: data } }
+          : node
+      )
+    )
+    setEditingMember(null)
+  }
+
+  const handleDeleteMember = async (id: string) => {
+    const supabase = createClient()
+
+    const { error } = await supabase
+      .from('members')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userId)
+
+    if (error) {
+      console.error('Error deleting member:', error)
+      return
+    }
+
+    // Remove the node from the canvas
+    setNodes((nds) => nds.filter((node) => node.id !== id))
+    setEditingMember(null)
+  }
+
+  // Add edit/delete handlers to each node's data
+  const nodesWithHandlers = useMemo(() => {
+    return nodes.map((node) => ({
+      ...node,
+      data: {
+        ...node.data,
+        onEdit: (member: Member) => setEditingMember(member),
+        onDelete: (id: string) => {
+          // Find member and open edit modal with delete confirmation
+          const member = nodes.find((n) => n.id === id)?.data.member
+          if (member) setEditingMember(member)
+        },
+      },
+    }))
+  }, [nodes])
+
   return (
     <div className={styles.canvasContainer}>
       <ReactFlow
-        nodes={nodes}
+        nodes={nodesWithHandlers}
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
@@ -115,15 +181,24 @@ export default function TreeCanvas({ initialMembers, userId }: TreeCanvasProps) 
 
       <button
         className={styles.addButton}
-        onClick={() => setIsModalOpen(true)}
+        onClick={() => setIsAddModalOpen(true)}
       >
         + Add Person
       </button>
 
-      {isModalOpen && (
+      {isAddModalOpen && (
         <AddMemberModal
-          onClose={() => setIsModalOpen(false)}
+          onClose={() => setIsAddModalOpen(false)}
           onAdd={handleAddMember}
+        />
+      )}
+
+      {editingMember && (
+        <EditMemberModal
+          member={editingMember}
+          onClose={() => setEditingMember(null)}
+          onSave={handleEditMember}
+          onDelete={handleDeleteMember}
         />
       )}
     </div>
