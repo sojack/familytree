@@ -23,14 +23,17 @@ import styles from './TreeCanvas.module.css'
 interface TreeCanvasProps {
   initialMembers: Member[]
   initialRelationships: Relationship[]
-  userId: string
+  treeId: string
 }
 
 const nodeTypes = {
   memberNode: MemberNodeComponent,
 }
 
-export default function TreeCanvas({ initialMembers, initialRelationships, userId }: TreeCanvasProps) {
+// Check if we're in dev bypass mode
+const isDevBypass = process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === 'true'
+
+export default function TreeCanvas({ initialMembers, initialRelationships, treeId }: TreeCanvasProps) {
   const initialNodes: Node[] = useMemo(() => {
     return initialMembers.map((member, index) => ({
       id: member.id,
@@ -44,20 +47,25 @@ export default function TreeCanvas({ initialMembers, initialRelationships, userI
   }, [initialMembers])
 
   const initialEdges: Edge[] = useMemo(() => {
-    return initialRelationships.map((rel) => ({
-      id: rel.id,
-      source: rel.source_id,
-      target: rel.target_id,
-      type: 'smoothstep',
-      animated: rel.type === 'spouse',
-      style: { 
-        stroke: rel.type === 'spouse' ? '#ec4899' : '#667eea',
-        strokeWidth: rel.type === 'spouse' ? 3 : 2,
-      },
-      label: rel.type === 'spouse' ? '❤️' : undefined,
-      labelStyle: { fontSize: 12 },
-      data: { type: rel.type },
-    }))
+    return initialRelationships.map((rel) => {
+      const isSpouse = rel.type === 'spouse'
+      return {
+        id: rel.id,
+        source: rel.source_id,
+        target: rel.target_id,
+        sourceHandle: isSpouse ? 'right' : undefined,
+        targetHandle: isSpouse ? 'left' : undefined,
+        type: 'smoothstep',
+        animated: isSpouse,
+        style: { 
+          stroke: isSpouse ? '#ec4899' : '#667eea',
+          strokeWidth: isSpouse ? 3 : 2,
+        },
+        label: isSpouse ? '❤️' : undefined,
+        labelStyle: { fontSize: 12 },
+        data: { type: rel.type },
+      }
+    })
   }, [initialRelationships])
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
@@ -82,31 +90,42 @@ export default function TreeCanvas({ initialMembers, initialRelationships, userI
   }, [initialRelationships, setEdges])
 
   const handleAddMember = async (name: string, birthYear: string) => {
-    const supabase = createClient()
-    
+    const newMember: Member = {
+      id: `local-${Date.now()}`,
+      tree_id: treeId,
+      name,
+      birth_year: birthYear ? parseInt(birthYear) : null,
+      created_at: new Date().toISOString(),
+    }
+
+    if (!isDevBypass) {
+      // Save to database in production
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from('members')
+        .insert({
+          tree_id: treeId,
+          name,
+          birth_year: birthYear ? parseInt(birthYear) : null,
+        })
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error adding member:', error)
+        return
+      }
+      newMember.id = data.id
+    }
+
     const newX = 100 + (nodes.length % 3) * 250
     const newY = 100 + Math.floor(nodes.length / 3) * 150
 
-    const { data, error } = await supabase
-      .from('members')
-      .insert({
-        user_id: userId,
-        name,
-        birth_year: birthYear ? parseInt(birthYear) : null,
-      })
-      .select()
-      .single()
-
-    if (error) {
-      console.error('Error adding member:', error)
-      return
-    }
-
     const newNode: Node = {
-      id: data.id,
+      id: newMember.id,
       type: 'memberNode',
       position: { x: newX, y: newY },
-      data: { member: data, isSelectedSource: false },
+      data: { member: newMember, isSelectedSource: false },
     }
 
     setNodes((nds) => [...nds, newNode])
@@ -118,28 +137,39 @@ export default function TreeCanvas({ initialMembers, initialRelationships, userI
   }
 
   const handleEditMember = async (id: string, name: string, birthYear: string) => {
-    const supabase = createClient()
+    if (!isDevBypass) {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from('members')
+        .update({
+          name,
+          birth_year: birthYear ? parseInt(birthYear) : null,
+        })
+        .eq('id', id)
+        .eq('tree_id', treeId)
+        .select()
+        .single()
 
-    const { data, error } = await supabase
-      .from('members')
-      .update({
-        name,
-        birth_year: birthYear ? parseInt(birthYear) : null,
-      })
-      .eq('id', id)
-      .eq('user_id', userId)
-      .select()
-      .single()
-
-    if (error) {
-      console.error('Error updating member:', error)
-      return
+      if (error) {
+        console.error('Error updating member:', error)
+        return
+      }
     }
 
     setNodes((nds) =>
       nds.map((node) =>
         node.id === id
-          ? { ...node, data: { ...node.data, member: data } }
+          ? { 
+              ...node, 
+              data: { 
+                ...node.data, 
+                member: { 
+                  ...node.data.member, 
+                  name, 
+                  birth_year: birthYear ? parseInt(birthYear) : null 
+                } 
+              } 
+            }
           : node
       )
     )
@@ -147,23 +177,24 @@ export default function TreeCanvas({ initialMembers, initialRelationships, userI
   }
 
   const handleDeleteMember = async (id: string) => {
-    const supabase = createClient()
+    if (!isDevBypass) {
+      const supabase = createClient()
+      await supabase
+        .from('relationships')
+        .delete()
+        .or(`source_id.eq.${id},target_id.eq.${id}`)
+        .eq('tree_id', treeId)
 
-    await supabase
-      .from('relationships')
-      .delete()
-      .or(`source_id.eq.${id},target_id.eq.${id}`)
-      .eq('user_id', userId)
+      const { error } = await supabase
+        .from('members')
+        .delete()
+        .eq('id', id)
+        .eq('tree_id', treeId)
 
-    const { error } = await supabase
-      .from('members')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', userId)
-
-    if (error) {
-      console.error('Error deleting member:', error)
-      return
+      if (error) {
+        console.error('Error deleting member:', error)
+        return
+      }
     }
 
     setNodes((nds) => nds.filter((node) => node.id !== id))
@@ -171,9 +202,8 @@ export default function TreeCanvas({ initialMembers, initialRelationships, userI
     setEditingMember(null)
   }
 
-  // SIMPLIFIED: Create relationship directly
   const createRelationship = async (sourceId: string, targetId: string) => {
-    console.log('Creating relationship:', { sourceId, targetId, connectMode })
+    console.log('Creating relationship:', { sourceId, targetId, connectMode, isDevBypass })
     
     if (!connectMode) {
       console.log('No connect mode set')
@@ -186,7 +216,6 @@ export default function TreeCanvas({ initialMembers, initialRelationships, userI
       return
     }
 
-    // Check if relationship already exists
     const existingEdge = edges.find(
       e => 
         (e.source === sourceId && e.target === targetId) ||
@@ -199,47 +228,57 @@ export default function TreeCanvas({ initialMembers, initialRelationships, userI
       return
     }
 
-    const supabase = createClient()
+    let relationshipId = `rel-${Date.now()}`
 
-    console.log('Inserting to database...')
-    const { data, error } = await supabase
-      .from('relationships')
-      .insert({
-        user_id: userId,
-        source_id: sourceId,
-        target_id: targetId,
-        type: connectMode,
-      })
-      .select()
-      .single()
+    if (!isDevBypass) {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from('relationships')
+        .insert({
+          tree_id: treeId,
+          source_id: sourceId,
+          target_id: targetId,
+          type: connectMode,
+        })
+        .select()
+        .single()
 
-    if (error) {
-      console.error('Database error:', error)
-      alert('Error creating relationship: ' + error.message)
-      resetConnectionState()
-      return
+      if (error) {
+        console.error('Database error:', error)
+        alert('Error creating relationship: ' + error.message)
+        resetConnectionState()
+        return
+      }
+      relationshipId = data.id
+      console.log('Database success:', data)
+    } else {
+      console.log('DEV MODE: Skipping database, using local ID')
     }
 
-    console.log('Database success:', data)
-
-    // Add edge to React Flow
+    const isSpouse = connectMode === 'spouse'
+    
     const newEdge: Edge = {
-      id: data.id,
+      id: relationshipId,
       source: sourceId,
       target: targetId,
       type: 'smoothstep',
-      animated: connectMode === 'spouse',
+      animated: isSpouse,
       style: {
-        stroke: connectMode === 'spouse' ? '#ec4899' : '#667eea',
-        strokeWidth: connectMode === 'spouse' ? 3 : 2,
+        stroke: isSpouse ? '#ec4899' : '#667eea',
+        strokeWidth: isSpouse ? 3 : 2,
       },
-      label: connectMode === 'spouse' ? '❤️' : undefined,
+      label: isSpouse ? '❤️' : undefined,
       labelStyle: { fontSize: 12 },
       data: { type: connectMode },
     }
 
     console.log('Adding edge:', newEdge)
-    setEdges((eds) => [...eds, newEdge])
+    setEdges((eds) => {
+      console.log('Previous edges count:', eds.length)
+      const newEdges = [...eds, newEdge]
+      console.log('New edges count:', newEdges.length)
+      return newEdges
+    })
     resetConnectionState()
   }
 
@@ -251,19 +290,13 @@ export default function TreeCanvas({ initialMembers, initialRelationships, userI
     )
   }
 
-  // Handle node click for connections
   const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
     console.log('Node clicked:', node.id, 'connectMode:', connectMode, 'selectedSource:', selectedSource)
     
-    if (!connectMode) {
-      console.log('No connect mode, ignoring click')
-      return
-    }
-
+    if (!connectMode) return
     event.stopPropagation()
 
     if (!selectedSource) {
-      // First click - select source
       console.log('Selecting source:', node.id)
       setSelectedSource(node.id)
       setNodes((nds) =>
@@ -273,15 +306,11 @@ export default function TreeCanvas({ initialMembers, initialRelationships, userI
         }))
       )
     } else if (selectedSource !== node.id) {
-      // Second click - create connection
       console.log('Creating connection from', selectedSource, 'to', node.id)
       createRelationship(selectedSource, node.id)
-    } else {
-      console.log('Clicked same node, ignoring')
     }
   }, [connectMode, selectedSource])
 
-  // Handle canvas click to cancel
   const onPaneClick = useCallback(() => {
     if (connectMode) {
       console.log('Canvas clicked, canceling connection mode')

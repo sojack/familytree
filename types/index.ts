@@ -1,6 +1,13 @@
+export interface Tree {
+  id: string
+  owner_id: string
+  name: string
+  created_at: string
+}
+
 export interface Member {
   id: string
-  user_id: string
+  tree_id: string
   name: string
   birth_year: number | null
   created_at: string
@@ -8,7 +15,7 @@ export interface Member {
 
 export interface Relationship {
   id: string
-  user_id: string
+  tree_id: string
   source_id: string
   target_id: string
   type: 'parent' | 'spouse'

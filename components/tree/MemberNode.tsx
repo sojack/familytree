@@ -16,10 +16,12 @@ export default function MemberNodeComponent({ data, selected }: NodeProps<Member
   
   return (
     <div className={`${styles.node} ${selected ? styles.selected : ''} ${isSelectedSource ? styles.selectedSource : ''}`}>
+      {/* Top handle - target for parent connections (child receives here) */}
       <Handle 
         type="target" 
         position={Position.Top} 
         className={styles.handle}
+        id="top"
       />
       
       <div className={styles.content}>
@@ -57,10 +59,40 @@ export default function MemberNodeComponent({ data, selected }: NodeProps<Member
         </button>
       </div>
       
+      {/* Bottom handle - source for parent connections (parent starts here) */}
       <Handle 
         type="source" 
         position={Position.Bottom} 
         className={styles.handle}
+        id="bottom"
+      />
+      
+      {/* Left side handles for spouses - overlapping so they look like one */}
+      <Handle 
+        type="source" 
+        position={Position.Left} 
+        className={`${styles.handle} ${styles.handleSide} ${styles.handleLeft}`}
+        id="left"
+      />
+      <Handle 
+        type="target" 
+        position={Position.Left} 
+        className={`${styles.handle} ${styles.handleSide} ${styles.handleLeftTarget}`}
+        id="left-target"
+      />
+      
+      {/* Right side handles for spouses - overlapping so they look like one */}
+      <Handle 
+        type="source" 
+        position={Position.Right} 
+        className={`${styles.handle} ${styles.handleSide} ${styles.handleRight}`}
+        id="right"
+      />
+      <Handle 
+        type="target" 
+        position={Position.Right} 
+        className={`${styles.handle} ${styles.handleSide} ${styles.handleRightTarget}`}
+        id="right-target"
       />
     </div>
   )
