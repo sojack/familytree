@@ -103,3 +103,24 @@
   font-size: 0.9rem;
   text-align: center;
 }
+
+.toggle {
+  margin-top: 1.25rem;
+  text-align: center;
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.toggleButton {
+  background: none;
+  border: none;
+  color: #667eea;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0;
+}
+
+.toggleButton:hover {
+  text-decoration: underline;
+}

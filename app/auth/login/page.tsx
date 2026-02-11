@@ -1,18 +1,20 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import styles from './page.module.css'
 
 function LoginForm() {
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [isSignUp, setIsSignUp] = useState(false)
   const searchParams = useSearchParams()
+  const router = useRouter()
 
-  // Check for error in URL (from callback redirect)
   useEffect(() => {
     const errorMsg = searchParams.get('error')
     if (errorMsg) {
@@ -20,38 +22,51 @@ function LoginForm() {
     }
   }, [searchParams])
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setMessage('')
     setError('')
 
     const supabase = createClient()
-    
-    const redirectTo = process.env.NEXT_PUBLIC_APP_URL || window.location.origin
-    
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${redirectTo}/auth/callback`,
-      },
-    })
 
-    if (error) {
-      setError(error.message)
+    if (isSignUp) {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+      })
+
+      if (error) {
+        setError(error.message)
+      } else {
+        setMessage('Account created! You can now sign in.')
+        setIsSignUp(false)
+        setPassword('')
+      }
     } else {
-      setMessage('Check your email for the magic link!')
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      if (error) {
+        setError(error.message)
+      } else {
+        router.push('/tree')
+      }
     }
-    
+
     setLoading(false)
   }
 
   return (
     <div className={styles.card}>
       <h1 className={styles.title}>Family Tree</h1>
-      <p className={styles.subtitle}>Sign in to view your family story</p>
-      
-      <form onSubmit={handleLogin} className={styles.form}>
+      <p className={styles.subtitle}>
+        {isSignUp ? 'Create an account to get started' : 'Sign in to view your family story'}
+      </p>
+
+      <form onSubmit={handleSubmit} className={styles.form}>
         <div className={styles.inputGroup}>
           <label htmlFor="email" className={styles.label}>
             Email
@@ -66,20 +81,51 @@ function LoginForm() {
             className={styles.input}
           />
         </div>
-        
-        <button 
-          type="submit" 
+
+        <div className={styles.inputGroup}>
+          <label htmlFor="password" className={styles.label}>
+            Password
+          </label>
+          <input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Your password"
+            required
+            minLength={6}
+            className={styles.input}
+          />
+        </div>
+
+        <button
+          type="submit"
           disabled={loading}
           className={styles.button}
         >
-          {loading ? 'Sending...' : 'Send Magic Link'}
+          {loading ? (isSignUp ? 'Creating account...' : 'Signing in...') : (isSignUp ? 'Create Account' : 'Sign In')}
         </button>
       </form>
-      
+
+      <p className={styles.toggle}>
+        {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
+        <button
+          type="button"
+          onClick={() => {
+            setIsSignUp(!isSignUp)
+            setError('')
+            setMessage('')
+          }}
+          className={styles.toggleButton}
+        >
+          {isSignUp ? 'Sign In' : 'Sign Up'}
+        </button>
+      </p>
+
       {message && (
         <div className={styles.message}>{message}</div>
       )}
-      
+
       {error && (
         <div className={styles.error}>{error}</div>
       )}
