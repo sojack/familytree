@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
+import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import styles from './page.module.css'
@@ -105,6 +106,12 @@ function LoginForm() {
         >
           {loading ? (isSignUp ? 'Creating account...' : 'Signing in...') : (isSignUp ? 'Create Account' : 'Sign In')}
         </button>
+
+        {!isSignUp && (
+          <Link href="/auth/forgot-password" className={styles.forgotLink}>
+            Forgot your password?
+          </Link>
+        )}
       </form>
 
       <p className={styles.toggle}>

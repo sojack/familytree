@@ -104,6 +104,18 @@
   text-align: center;
 }
 
+.forgotLink {
+  display: block;
+  text-align: center;
+  font-size: 0.85rem;
+  color: #667eea;
+  margin-top: -0.25rem;
+}
+
+.forgotLink:hover {
+  text-decoration: underline;
+}
+
 .toggle {
   margin-top: 1.25rem;
   text-align: center;
