@@ -21,12 +21,21 @@ export default async function TreeRedirectPage() {
   }
 
   // Find the user's first tree
-  const { data: trees } = await supabase
+  const { data: trees, error: treesError } = await supabase
     .from('trees')
     .select('id')
     .eq('owner_id', user.id)
     .order('created_at', { ascending: true })
     .limit(1)
+
+  if (treesError) {
+    console.error('Trees query error:', treesError.message)
+    return (
+      <div className={styles.loading}>
+        <p>Error loading trees: {treesError.message}</p>
+      </div>
+    )
+  }
 
   if (trees && trees.length > 0) {
     redirect(`/tree/${trees[0].id}`)
@@ -43,7 +52,7 @@ export default async function TreeRedirectPage() {
     console.error('Failed to create default tree:', createError?.message)
     return (
       <div className={styles.loading}>
-        <p>Something went wrong. Please try again.</p>
+        <p>Error creating tree: {createError?.message || 'Unknown error'}</p>
       </div>
     )
   }
