@@ -55,28 +55,6 @@
   z-index: 10;
 }
 
-.toolbarButton {
-  padding: 0.5rem 1rem;
-  background: #f3f4f6;
-  color: #374151;
-  border: 2px solid transparent;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.toolbarButton:hover {
-  background: #e5e7eb;
-}
-
-.toolbarButton.active {
-  background: #667eea;
-  color: white;
-  border-color: #764ba2;
-}
-
 .treeNameButton {
   background: transparent;
   border: 1px solid transparent;
@@ -105,25 +83,3 @@
   min-width: 120px;
 }
 
-.toolbarDivider {
-  width: 1px;
-  height: 24px;
-  background: #d1d5db;
-  margin: 0 0.25rem;
-}
-
-.connectHint {
-  font-size: 0.8rem;
-  color: #667eea;
-  margin-left: 0.5rem;
-  padding: 0.25rem 0.5rem;
-  background: #e0e7ff;
-  border-radius: 4px;
-  white-space: nowrap;
-}
-
-/* Selected source node when connecting */
-.selectedSource :global(.react-flow__node) {
-  box-shadow: 0 0 0 4px #22c55e !important;
-  border-color: #22c55e !important;
-}

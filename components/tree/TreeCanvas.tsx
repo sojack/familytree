@@ -9,10 +9,13 @@ import ReactFlow, {
   useEdgesState,
   type Node,
   type Edge,
+  type Connection,
   type ReactFlowInstance,
   type NodeDragHandler,
   type NodeChange,
   type EdgeChange,
+  ConnectionMode,
+  ConnectionLineType,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 
@@ -50,7 +53,7 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
         x: member.position_x ?? 100 + (index % 3) * 250,
         y: member.position_y ?? 100 + Math.floor(index / 3) * 150,
       },
-      data: { member, isSelectedSource: false },
+      data: { member },
     }))
   }, [initialMembers])
 
@@ -82,8 +85,6 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [editingMember, setEditingMember] = useState<Member | null>(null)
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null)
-  const [connectMode, setConnectMode] = useState<'parent' | 'spouse' | null>(null)
-  const [selectedSource, setSelectedSource] = useState<string | null>(null)
 
   // Editable tree name state
   const [currentTreeName, setCurrentTreeName] = useState(treeName || 'My Family Tree')
@@ -322,7 +323,7 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
       id: newMember.id,
       type: 'memberNode',
       position: { x: newX, y: newY },
-      data: { member: newMember, isSelectedSource: false },
+      data: { member: newMember },
     }
 
     setNodes((nds) => [...nds, newNode])
@@ -399,28 +400,57 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
     setEditingMember(null)
   }
 
-  const createRelationship = async (sourceId: string, targetId: string) => {
-    if (!connectMode) return
+  const onConnect = useCallback(async (connection: Connection) => {
+    const { source, target, sourceHandle, targetHandle } = connection
+    if (!source || !target || source === target) return
 
-    if (sourceId === targetId) {
-      alert('Cannot connect a person to themselves!')
-      resetConnectionState()
+    // Determine relationship type from handle positions
+    const sideHandles = ['left', 'right']
+    const verticalHandles = ['top', 'bottom']
+
+    const sourceIsSide = sideHandles.includes(sourceHandle || '')
+    const targetIsSide = sideHandles.includes(targetHandle || '')
+    const sourceIsVertical = verticalHandles.includes(sourceHandle || '')
+    const targetIsVertical = verticalHandles.includes(targetHandle || '')
+
+    let relType: 'spouse' | 'parent'
+    let parentId: string
+    let childId: string
+
+    if (sourceIsSide && targetIsSide) {
+      // Side → Side = spouse
+      relType = 'spouse'
+      parentId = source
+      childId = target
+    } else if (sourceIsVertical && targetIsVertical) {
+      // Vertical → Vertical = parent
+      // Normalize: bottom-side is parent, top-side is child
+      relType = 'parent'
+      if (sourceHandle === 'bottom') {
+        parentId = source
+        childId = target
+      } else {
+        // top → bottom means child dragged to parent, reverse
+        parentId = target
+        childId = source
+      }
+    } else {
+      // Mixed handle types — ignore
       return
     }
 
+    // Check for duplicate edges
     const existingEdge = edges.find(
       e =>
-        (e.source === sourceId && e.target === targetId) ||
-        (e.source === targetId && e.target === sourceId)
+        (e.source === parentId && e.target === childId) ||
+        (e.source === childId && e.target === parentId)
     )
-
-    if (existingEdge) {
-      alert('These people are already connected!')
-      resetConnectionState()
-      return
-    }
+    if (existingEdge) return
 
     let relationshipId = `rel-${Date.now()}`
+
+    const sourceId = relType === 'spouse' ? source : parentId
+    const targetId = relType === 'spouse' ? target : childId
 
     if (!isDevBypass) {
       const supabase = createClient()
@@ -430,21 +460,19 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
           tree_id: treeId,
           source_id: sourceId,
           target_id: targetId,
-          type: connectMode,
+          type: relType,
         })
         .select()
         .single()
 
       if (error) {
         console.error('Error creating relationship:', error)
-        alert('Error creating relationship. Please try again.')
-        resetConnectionState()
         return
       }
       relationshipId = data.id
     }
 
-    const isSpouse = connectMode === 'spouse'
+    const isSpouse = relType === 'spouse'
 
     const newEdge: Edge = {
       id: relationshipId,
@@ -460,44 +488,11 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
       },
       label: isSpouse ? '❤️' : undefined,
       labelStyle: { fontSize: 12 },
-      data: { type: connectMode },
+      data: { type: relType },
     }
 
     setEdges((eds) => [...eds, newEdge])
-    resetConnectionState()
-  }
-
-  const resetConnectionState = () => {
-    setSelectedSource(null)
-    setConnectMode(null)
-    setNodes((nds) =>
-      nds.map((node) => ({ ...node, data: { ...node.data, isSelectedSource: false } }))
-    )
-  }
-
-  const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
-    if (!connectMode) return
-    if (node.id.startsWith('junction-')) return
-    event.stopPropagation()
-
-    if (!selectedSource) {
-      setSelectedSource(node.id)
-      setNodes((nds) =>
-        nds.map((n) => ({
-          ...n,
-          data: { ...n.data, isSelectedSource: n.id === node.id },
-        }))
-      )
-    } else if (selectedSource !== node.id) {
-      createRelationship(selectedSource, node.id)
-    }
-  }, [connectMode, selectedSource])
-
-  const onPaneClick = useCallback(() => {
-    if (connectMode) {
-      resetConnectionState()
-    }
-  }, [connectMode])
+  }, [treeId, edges, setEdges])
 
   const onEdgeClick = useCallback(async (_event: React.MouseEvent, edge: Edge) => {
     const rawEdgeIds: string[] = edge.data?.rawEdgeIds || [edge.id]
@@ -545,12 +540,14 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
         edges={displayEdges}
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
-        onNodeClick={onNodeClick}
+        onConnect={onConnect}
         onNodeDragStop={onNodeDragStop}
         onEdgeClick={onEdgeClick}
-        onPaneClick={onPaneClick}
         onInit={onInit}
         nodeTypes={nodeTypes}
+        connectionMode={ConnectionMode.Loose}
+        connectionLineType={ConnectionLineType.SmoothStep}
+        connectionLineStyle={{ stroke: '#667eea', strokeWidth: 2 }}
         fitView
         minZoom={0.1}
         maxZoom={2}
@@ -565,9 +562,9 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
         />
       </ReactFlow>
 
-      <div className={styles.toolbar}>
-        {treeName !== undefined && (
-          isEditingName ? (
+      {treeName !== undefined && (
+        <div className={styles.toolbar}>
+          {isEditingName ? (
             <input
               ref={nameInputRef}
               className={styles.treeNameInput}
@@ -590,43 +587,9 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
             >
               {currentTreeName}
             </button>
-          )
-        )}
-        {treeName !== undefined && <span className={styles.toolbarDivider} />}
-        <button
-          className={`${styles.toolbarButton} ${connectMode === 'parent' ? styles.active : ''}`}
-          onClick={() => {
-            if (connectMode === 'parent') {
-              resetConnectionState()
-            } else {
-              setConnectMode('parent')
-              setSelectedSource(null)
-            }
-          }}
-        >
-          Parent
-        </button>
-        <button
-          className={`${styles.toolbarButton} ${connectMode === 'spouse' ? styles.active : ''}`}
-          onClick={() => {
-            if (connectMode === 'spouse') {
-              resetConnectionState()
-            } else {
-              setConnectMode('spouse')
-              setSelectedSource(null)
-            }
-          }}
-        >
-          Spouse
-        </button>
-        {connectMode && (
-          <span className={styles.connectHint}>
-            {selectedSource
-              ? 'Click another person to connect'
-              : 'Click a person to start'}
-          </span>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       <button
         className={styles.addButton}

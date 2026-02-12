@@ -6,24 +6,24 @@ import styles from './MemberNode.module.css'
 
 interface MemberNodeData {
   member: Member
-  isSelectedSource: boolean
   onEdit: (member: Member) => void
   onDelete: (id: string) => void
 }
 
 export default function MemberNodeComponent({ data, selected }: NodeProps<MemberNodeData>) {
-  const { member, isSelectedSource, onEdit, onDelete } = data
-  
+  const { member, onEdit, onDelete } = data
+
   return (
-    <div className={`${styles.node} ${selected ? styles.selected : ''} ${isSelectedSource ? styles.selectedSource : ''}`}>
-      {/* Top handle - target for parent connections (child receives here) */}
-      <Handle 
-        type="target" 
-        position={Position.Top} 
+    <div className={`${styles.node} ${selected ? styles.selected : ''}`}>
+      {/* Top handle - target for parent connections (child receives here), also draggable as source */}
+      <Handle
+        type="target"
+        position={Position.Top}
         className={styles.handle}
         id="top"
+        isConnectableStart={true}
       />
-      
+
       <div className={styles.content}>
         <div className={styles.avatar}>
           {member.name.charAt(0).toUpperCase()}
@@ -35,9 +35,9 @@ export default function MemberNodeComponent({ data, selected }: NodeProps<Member
           )}
         </div>
       </div>
-      
+
       <div className={styles.actions}>
-        <button 
+        <button
           className={styles.editButton}
           onClick={(e) => {
             e.stopPropagation()
@@ -47,7 +47,7 @@ export default function MemberNodeComponent({ data, selected }: NodeProps<Member
         >
           ✎
         </button>
-        <button 
+        <button
           className={styles.deleteButton}
           onClick={(e) => {
             e.stopPropagation()
@@ -58,29 +58,32 @@ export default function MemberNodeComponent({ data, selected }: NodeProps<Member
           ×
         </button>
       </div>
-      
-      {/* Bottom handle - source for parent connections (parent starts here) */}
-      <Handle 
-        type="source" 
-        position={Position.Bottom} 
+
+      {/* Bottom handle - source for parent connections (parent starts here), also droppable as target */}
+      <Handle
+        type="source"
+        position={Position.Bottom}
         className={styles.handle}
         id="bottom"
+        isConnectableEnd={true}
       />
-      
-      {/* Left handle - target for spouse connections */}
+
+      {/* Left handle - target for spouse connections, also draggable as source */}
       <Handle
         type="target"
         position={Position.Left}
         className={`${styles.handle} ${styles.handleSide}`}
         id="left"
+        isConnectableStart={true}
       />
 
-      {/* Right handle - source for spouse connections */}
+      {/* Right handle - source for spouse connections, also droppable as target */}
       <Handle
         type="source"
         position={Position.Right}
         className={`${styles.handle} ${styles.handleSide}`}
         id="right"
+        isConnectableEnd={true}
       />
     </div>
   )
