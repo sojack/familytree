@@ -67,32 +67,20 @@ export default function MemberNodeComponent({ data, selected }: NodeProps<Member
         id="bottom"
       />
       
-      {/* Left side handles for spouses - overlapping so they look like one */}
-      <Handle 
-        type="source" 
-        position={Position.Left} 
-        className={`${styles.handle} ${styles.handleSide} ${styles.handleLeft}`}
+      {/* Left handle - target for spouse connections */}
+      <Handle
+        type="target"
+        position={Position.Left}
+        className={`${styles.handle} ${styles.handleSide}`}
         id="left"
       />
-      <Handle 
-        type="target" 
-        position={Position.Left} 
-        className={`${styles.handle} ${styles.handleSide} ${styles.handleLeftTarget}`}
-        id="left-target"
-      />
-      
-      {/* Right side handles for spouses - overlapping so they look like one */}
-      <Handle 
-        type="source" 
-        position={Position.Right} 
-        className={`${styles.handle} ${styles.handleSide} ${styles.handleRight}`}
+
+      {/* Right handle - source for spouse connections */}
+      <Handle
+        type="source"
+        position={Position.Right}
+        className={`${styles.handle} ${styles.handleSide}`}
         id="right"
-      />
-      <Handle 
-        type="target" 
-        position={Position.Right} 
-        className={`${styles.handle} ${styles.handleSide} ${styles.handleRightTarget}`}
-        id="right-target"
       />
     </div>
   )

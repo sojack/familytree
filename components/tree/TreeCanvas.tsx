@@ -58,7 +58,7 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
         sourceHandle: isSpouse ? 'right' : undefined,
         targetHandle: isSpouse ? 'left' : undefined,
         type: 'smoothstep',
-        animated: isSpouse,
+        animated: false,
         style: {
           stroke: isSpouse ? '#ec4899' : '#667eea',
           strokeWidth: isSpouse ? 3 : 2,
@@ -302,6 +302,8 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
       id: relationshipId,
       source: sourceId,
       target: targetId,
+      sourceHandle: isSpouse ? 'right' : undefined,
+      targetHandle: isSpouse ? 'left' : undefined,
       type: 'smoothstep',
       animated: isSpouse,
       style: {

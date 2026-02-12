@@ -166,29 +166,3 @@
 .handleSide:hover {
   background: #ec4899;
 }
-
-/* Left side - source handle visible, target handle behind it */
-.handleLeft {
-  left: -6px;
-  z-index: 2;
-}
-
-.handleLeftTarget {
-  left: -6px;
-  background: #ec4899;
-  opacity: 0.4;
-  z-index: 1;
-}
-
-/* Right side - source handle visible, target handle behind it */
-.handleRight {
-  right: -6px;
-  z-index: 2;
-}
-
-.handleRightTarget {
-  right: -6px;
-  background: #ec4899;
-  opacity: 0.4;
-  z-index: 1;
-}
