@@ -220,13 +220,20 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
     onMemberNodesChange(memberChanges)
   }, [onMemberNodesChange])
 
-  // Filter display-only edge changes so they map back to raw edges
+  // Filter display-only edge changes so they map back to raw edges.
+  // We manage all edge add/remove ourselves via setEdges, so only allow
+  // select and reset changes through — otherwise ReactFlow's diff between
+  // displayEdges and raw edges corrupts state when junctions transform edges.
   const handleEdgesChange = useCallback((changes: EdgeChange[]) => {
     const rawChanges = changes.filter((c) => {
-      if (c.type === 'add' || c.type === 'reset') return true
-      const id = c.id
-      // Skip changes for split/junction display edges
-      if (id.startsWith('junction-') || id.endsWith('-a') || id.endsWith('-b')) return false
+      if (c.type === 'reset') return true
+      // Block add/remove — we handle these via setEdges in onConnect/onEdgeClick
+      if (c.type === 'add' || c.type === 'remove') return false
+      // For select etc., only pass through for raw edges (not display-only)
+      if ('id' in c) {
+        const id = c.id
+        if (id.startsWith('junction-') || id.endsWith('-a') || id.endsWith('-b')) return false
+      }
       return true
     })
     onRawEdgesChange(rawChanges)
