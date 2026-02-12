@@ -12,6 +12,7 @@ import ReactFlow, {
   type ReactFlowInstance,
   type NodeDragHandler,
   type NodeChange,
+  type EdgeChange,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 
@@ -77,7 +78,7 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
 
   // Raw state: only member nodes and relationship edges
   const [nodes, setNodes, onMemberNodesChange] = useNodesState(initialNodes)
-  const [edges, setEdges] = useEdgesState(initialEdges)
+  const [edges, setEdges, onRawEdgesChange] = useEdgesState(initialEdges)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [editingMember, setEditingMember] = useState<Member | null>(null)
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null)
@@ -217,6 +218,18 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
     })
     onMemberNodesChange(memberChanges)
   }, [onMemberNodesChange])
+
+  // Filter display-only edge changes so they map back to raw edges
+  const handleEdgesChange = useCallback((changes: EdgeChange[]) => {
+    const rawChanges = changes.filter((c) => {
+      if (c.type === 'add' || c.type === 'reset') return true
+      const id = c.id
+      // Skip changes for split/junction display edges
+      if (id.startsWith('junction-') || id.endsWith('-a') || id.endsWith('-b')) return false
+      return true
+    })
+    onRawEdgesChange(rawChanges)
+  }, [onRawEdgesChange])
 
   const onInit = useCallback((instance: ReactFlowInstance) => {
     setReactFlowInstance(instance)
@@ -531,6 +544,7 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
         nodes={nodesWithHandlers}
         edges={displayEdges}
         onNodesChange={handleNodesChange}
+        onEdgesChange={handleEdgesChange}
         onNodeClick={onNodeClick}
         onNodeDragStop={onNodeDragStop}
         onEdgeClick={onEdgeClick}
