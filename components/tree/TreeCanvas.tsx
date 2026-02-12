@@ -5,15 +5,13 @@ import ReactFlow, {
   Background,
   Controls,
   MiniMap,
-  useNodesState,
-  useEdgesState,
+  applyNodeChanges,
   type Node,
   type Edge,
   type Connection,
   type ReactFlowInstance,
   type NodeDragHandler,
   type NodeChange,
-  type EdgeChange,
   ConnectionMode,
   ConnectionLineType,
 } from 'reactflow'
@@ -80,8 +78,12 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
   }, [initialRelationships])
 
   // Raw state: only member nodes and relationship edges
-  const [nodes, setNodes, onMemberNodesChange] = useNodesState(initialNodes)
-  const [edges, setEdges, onRawEdgesChange] = useEdgesState(initialEdges)
+  // Using plain useState instead of useNodesState to avoid infinite re-render loops.
+  // useNodesState's applyNodeChanges always creates new array references even when
+  // dimension values haven't changed, which retriggers the displayEdges useMemo,
+  // which recreates junction nodes, which triggers more dimension changes, etc.
+  const [nodes, setNodes] = useState<Node[]>(initialNodes)
+  const [edges, setEdges] = useState<Edge[]>(initialEdges)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [editingMember, setEditingMember] = useState<Member | null>(null)
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null)
@@ -211,33 +213,28 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
     }
   }, [nodes, edges])
 
-  // Filter out junction node changes so they don't pollute member state
+  // Filter out junction node changes and prevent infinite re-render loops.
+  // We use setNodes with a stability check: only return a new array when
+  // values actually change, preventing useMemo from re-running needlessly.
   const handleNodesChange = useCallback((changes: NodeChange[]) => {
     const memberChanges = changes.filter((c) => {
-      if (c.type === 'add' || c.type === 'reset') return true
-      return !c.id.startsWith('junction-')
-    })
-    onMemberNodesChange(memberChanges)
-  }, [onMemberNodesChange])
-
-  // Filter display-only edge changes so they map back to raw edges.
-  // We manage all edge add/remove ourselves via setEdges, so only allow
-  // select and reset changes through — otherwise ReactFlow's diff between
-  // displayEdges and raw edges corrupts state when junctions transform edges.
-  const handleEdgesChange = useCallback((changes: EdgeChange[]) => {
-    const rawChanges = changes.filter((c) => {
-      if (c.type === 'reset') return true
-      // Block add/remove — we handle these via setEdges in onConnect/onEdgeClick
+      // Block add/remove — we manage node creation/deletion via setNodes directly
       if (c.type === 'add' || c.type === 'remove') return false
-      // For select etc., only pass through for raw edges (not display-only)
-      if ('id' in c) {
-        const id = c.id
-        if (id.startsWith('junction-') || id.endsWith('-a') || id.endsWith('-b')) return false
-      }
+      // Block all changes for junction nodes (they're ephemeral display-only)
+      if ('id' in c && c.id.startsWith('junction-')) return false
       return true
     })
-    onRawEdgesChange(rawChanges)
-  }, [onRawEdgesChange])
+    if (memberChanges.length === 0) return
+    setNodes((currentNodes) => {
+      const updated = applyNodeChanges(memberChanges, currentNodes)
+      // Only return new reference if something actually changed
+      if (updated.length !== currentNodes.length) return updated
+      for (let i = 0; i < updated.length; i++) {
+        if (updated[i] !== currentNodes[i]) return updated
+      }
+      return currentNodes
+    })
+  }, [setNodes])
 
   const onInit = useCallback((instance: ReactFlowInstance) => {
     setReactFlowInstance(instance)
@@ -546,7 +543,6 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
         nodes={nodesWithHandlers}
         edges={displayEdges}
         onNodesChange={handleNodesChange}
-        onEdgesChange={handleEdgesChange}
         onConnect={onConnect}
         onNodeDragStop={onNodeDragStop}
         onEdgeClick={onEdgeClick}
