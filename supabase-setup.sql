@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS members (
     tree_id UUID NOT NULL REFERENCES trees(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     birth_year INTEGER,
+    position_x DOUBLE PRECISION,
+    position_y DOUBLE PRECISION,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

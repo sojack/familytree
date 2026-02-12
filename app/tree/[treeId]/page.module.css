@@ -14,6 +14,28 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.backLink {
+  font-size: 0.875rem;
+  color: #667eea;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.backLink:hover {
+  text-decoration: underline;
+}
+
+.headerSep {
+  color: #d1d5db;
+  font-size: 0.875rem;
+}
+
 .title {
   font-size: 1.5rem;
   font-weight: 600;
@@ -25,6 +47,11 @@
   display: flex;
   align-items: center;
   gap: 1rem;
+}
+
+.userEmail {
+  font-size: 0.8rem;
+  color: #888;
 }
 
 .devBadge {

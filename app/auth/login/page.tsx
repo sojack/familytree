@@ -13,8 +13,20 @@ function LoginForm() {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [isSignUp, setIsSignUp] = useState(false)
+  const [checkingAuth, setCheckingAuth] = useState(true)
   const searchParams = useSearchParams()
   const router = useRouter()
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        router.replace('/tree')
+      } else {
+        setCheckingAuth(false)
+      }
+    })
+  }, [router])
 
   useEffect(() => {
     const errorMsg = searchParams.get('error')
@@ -22,6 +34,10 @@ function LoginForm() {
       setError(errorMsg)
     }
   }, [searchParams])
+
+  if (checkingAuth) {
+    return <div className={styles.card}>Loading...</div>
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

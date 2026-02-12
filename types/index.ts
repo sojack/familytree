@@ -10,6 +10,8 @@ export interface Member {
   tree_id: string
   name: string
   birth_year: number | null
+  position_x: number | null
+  position_y: number | null
   created_at: string
 }
 

@@ -1,13 +1,12 @@
 import { redirect } from 'next/navigation'
 import { notFound } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import TreeCanvas from '@/components/tree/TreeCanvas'
 import styles from './page.module.css'
 
 // Dev bypass for local testing
 const DEV_BYPASS = process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === 'true'
-
-const DEV_TREE_ID = 'dev-tree-456'
 
 interface TreePageProps {
   params: Promise<{ treeId: string }>
@@ -17,13 +16,14 @@ export default async function TreePage({ params }: TreePageProps) {
   const { treeId } = await params
 
   if (DEV_BYPASS) {
-    console.log('🔓 DEV MODE: Loading tree', treeId)
     return (
       <div className={styles.container}>
         <header className={styles.header}>
-          <h1 className={styles.title}>My Family Tree</h1>
+          <div className={styles.headerLeft}>
+            <h1 className={styles.title}>My Family Tree</h1>
+          </div>
           <div className={styles.headerRight}>
-            <span className={styles.devBadge}>🔓 DEV MODE</span>
+            <span className={styles.devBadge}>DEV MODE</span>
           </div>
         </header>
         <main className={styles.main}>
@@ -31,6 +31,7 @@ export default async function TreePage({ params }: TreePageProps) {
             initialMembers={[]}
             initialRelationships={[]}
             treeId={treeId}
+            treeName="My Family Tree"
           />
         </main>
       </div>
@@ -79,8 +80,13 @@ export default async function TreePage({ params }: TreePageProps) {
   return (
     <div className={styles.container}>
       <header className={styles.header}>
-        <h1 className={styles.title}>{tree.name}</h1>
+        <div className={styles.headerLeft}>
+          <Link href="/tree" className={styles.backLink}>Trees</Link>
+          <span className={styles.headerSep}>/</span>
+          <h1 className={styles.title}>{tree.name}</h1>
+        </div>
         <div className={styles.headerRight}>
+          <span className={styles.userEmail}>{user.email}</span>
           <form action="/auth/signout" method="post">
             <button type="submit" className={styles.signoutButton}>
               Sign Out
@@ -93,6 +99,7 @@ export default async function TreePage({ params }: TreePageProps) {
           initialMembers={members || []}
           initialRelationships={relationships || []}
           treeId={treeId}
+          treeName={tree.name}
         />
       </main>
     </div>
