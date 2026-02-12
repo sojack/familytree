@@ -11,12 +11,14 @@ import ReactFlow, {
   type Edge,
   type ReactFlowInstance,
   type NodeDragHandler,
+  type NodeChange,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 
 import { createClient } from '@/lib/supabase/client'
 import { Member, Relationship } from '@/types'
 import MemberNodeComponent from './MemberNode'
+import JunctionNodeComponent from './JunctionNode'
 import AddMemberModal from './AddMemberModal'
 import EditMemberModal from './EditMemberModal'
 import styles from './TreeCanvas.module.css'
@@ -30,7 +32,10 @@ interface TreeCanvasProps {
 
 const nodeTypes = {
   memberNode: MemberNodeComponent,
+  junction: JunctionNodeComponent,
 }
+
+const JUNCTION_SIZE = 8
 
 // Check if we're in dev bypass mode
 const isDevBypass = process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === 'true'
@@ -55,8 +60,8 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
         id: rel.id,
         source: rel.source_id,
         target: rel.target_id,
-        sourceHandle: isSpouse ? 'right' : undefined,
-        targetHandle: isSpouse ? 'left' : undefined,
+        sourceHandle: isSpouse ? 'right' : 'bottom',
+        targetHandle: isSpouse ? 'left' : 'top',
         type: 'smoothstep',
         animated: false,
         style: {
@@ -70,8 +75,9 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
     })
   }, [initialRelationships])
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
+  // Raw state: only member nodes and relationship edges
+  const [nodes, setNodes, onMemberNodesChange] = useNodesState(initialNodes)
+  const [edges, setEdges] = useEdgesState(initialEdges)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [editingMember, setEditingMember] = useState<Member | null>(null)
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null)
@@ -82,6 +88,131 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
   const [currentTreeName, setCurrentTreeName] = useState(treeName || 'My Family Tree')
   const [isEditingName, setIsEditingName] = useState(false)
   const nameInputRef = useRef<HTMLInputElement>(null)
+
+  // Compute junction nodes and transformed edges for display
+  const { displayNodes, displayEdges } = useMemo(() => {
+    const spouseEdges = edges.filter(e => e.data?.type === 'spouse')
+    const parentEdges = edges.filter(e => e.data?.type === 'parent')
+
+    // Map each parent to their children
+    const parentChildren = new Map<string, Set<string>>()
+    for (const pe of parentEdges) {
+      if (!parentChildren.has(pe.source)) parentChildren.set(pe.source, new Set())
+      parentChildren.get(pe.source)!.add(pe.target)
+    }
+
+    const junctionNodes: Node[] = []
+    const transformedEdges: Edge[] = []
+    const handledParentEdgeIds = new Set<string>()
+    const handledSpouseEdgeIds = new Set<string>()
+
+    for (const se of spouseEdges) {
+      // Collect children of either spouse
+      const s1Children = parentChildren.get(se.source) || new Set<string>()
+      const s2Children = parentChildren.get(se.target) || new Set<string>()
+      const allChildren = new Set([...s1Children, ...s2Children])
+
+      if (allChildren.size === 0) continue
+
+      const s1 = nodes.find(n => n.id === se.source)
+      const s2 = nodes.find(n => n.id === se.target)
+      if (!s1 || !s2) continue
+
+      handledSpouseEdgeIds.add(se.id)
+      const junctionId = `junction-${se.id}`
+
+      // Position junction at midpoint of the spouse connection line
+      const nodeW = s1.width ?? 160
+      const nodeH = s1.height ?? 120
+      junctionNodes.push({
+        id: junctionId,
+        type: 'junction',
+        position: {
+          x: (s1.position.x + nodeW + s2.position.x) / 2 - JUNCTION_SIZE / 2,
+          y: (s1.position.y + s2.position.y) / 2 + nodeH / 2 - JUNCTION_SIZE / 2,
+        },
+        data: {},
+        draggable: false,
+        selectable: false,
+        focusable: false,
+      })
+
+      // Split spouse edge into two halves through junction
+      const spouseStyle = se.style
+      transformedEdges.push({
+        id: `${se.id}-a`,
+        source: se.source,
+        target: junctionId,
+        sourceHandle: 'right',
+        targetHandle: 'left',
+        type: 'smoothstep',
+        animated: false,
+        style: spouseStyle,
+        data: se.data,
+      })
+      transformedEdges.push({
+        id: `${se.id}-b`,
+        source: junctionId,
+        target: se.target,
+        sourceHandle: 'right',
+        targetHandle: 'left',
+        type: 'smoothstep',
+        animated: false,
+        style: spouseStyle,
+        data: se.data,
+      })
+
+      // Junction → child edges
+      for (const childId of allChildren) {
+        transformedEdges.push({
+          id: `${junctionId}-${childId}`,
+          source: junctionId,
+          target: childId,
+          sourceHandle: 'bottom',
+          targetHandle: 'top',
+          type: 'smoothstep',
+          animated: false,
+          style: { stroke: '#667eea', strokeWidth: 2 },
+          data: { type: 'parent' },
+        })
+      }
+
+      // Mark original parent edges as handled
+      for (const pe of parentEdges) {
+        if ((pe.source === se.source || pe.source === se.target) && allChildren.has(pe.target)) {
+          handledParentEdgeIds.add(pe.id)
+        }
+      }
+    }
+
+    // Pass through unhandled spouse edges as-is
+    for (const se of spouseEdges) {
+      if (!handledSpouseEdgeIds.has(se.id)) {
+        transformedEdges.push(se)
+      }
+    }
+
+    // Pass through unhandled parent edges as-is
+    for (const pe of parentEdges) {
+      if (!handledParentEdgeIds.has(pe.id)) {
+        transformedEdges.push(pe)
+      }
+    }
+
+    return {
+      displayNodes: [...nodes, ...junctionNodes],
+      displayEdges: transformedEdges,
+    }
+  }, [nodes, edges])
+
+  // Filter out junction node changes so they don't pollute member state
+  const handleNodesChange = useCallback((changes: NodeChange[]) => {
+    const memberChanges = changes.filter((c) => {
+      if (c.type === 'add' || c.type === 'reset') return true
+      return !c.id.startsWith('junction-')
+    })
+    onMemberNodesChange(memberChanges)
+  }, [onMemberNodesChange])
 
   const onInit = useCallback((instance: ReactFlowInstance) => {
     setReactFlowInstance(instance)
@@ -105,6 +236,7 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
 
   const onNodeDragStop: NodeDragHandler = useCallback(async (_event, node) => {
     if (isDevBypass) return
+    if (node.id.startsWith('junction-')) return
     const supabase = createClient()
     const { error } = await supabase
       .from('members')
@@ -148,7 +280,6 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
     }
 
     if (!isDevBypass) {
-      // Save to database in production
       const supabase = createClient()
       const { data, error } = await supabase
         .from('members')
@@ -302,10 +433,10 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
       id: relationshipId,
       source: sourceId,
       target: targetId,
-      sourceHandle: isSpouse ? 'right' : undefined,
-      targetHandle: isSpouse ? 'left' : undefined,
+      sourceHandle: isSpouse ? 'right' : 'bottom',
+      targetHandle: isSpouse ? 'left' : 'top',
       type: 'smoothstep',
-      animated: isSpouse,
+      animated: false,
       style: {
         stroke: isSpouse ? '#ec4899' : '#667eea',
         strokeWidth: isSpouse ? 3 : 2,
@@ -329,6 +460,7 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
 
   const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
     if (!connectMode) return
+    if (node.id.startsWith('junction-')) return
     event.stopPropagation()
 
     if (!selectedSource) {
@@ -351,26 +483,28 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
   }, [connectMode])
 
   const nodesWithHandlers = useMemo(() => {
-    return nodes.map((node) => ({
-      ...node,
-      data: {
-        ...node.data,
-        onEdit: (member: Member) => setEditingMember(member),
-        onDelete: (id: string) => {
-          const member = nodes.find((n) => n.id === id)?.data.member
-          if (member) setEditingMember(member)
+    return displayNodes.map((node) => {
+      if (node.type === 'junction') return node
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          onEdit: (member: Member) => setEditingMember(member),
+          onDelete: (id: string) => {
+            const found = nodes.find((n) => n.id === id)
+            if (found?.data?.member) setEditingMember(found.data.member)
+          },
         },
-      },
-    }))
-  }, [nodes])
+      }
+    })
+  }, [displayNodes, nodes])
 
   return (
     <div className={styles.canvasContainer}>
       <ReactFlow
         nodes={nodesWithHandlers}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
+        edges={displayEdges}
+        onNodesChange={handleNodesChange}
         onNodeClick={onNodeClick}
         onNodeDragStop={onNodeDragStop}
         onPaneClick={onPaneClick}
