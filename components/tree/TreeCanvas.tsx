@@ -148,7 +148,7 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
         type: 'smoothstep',
         animated: false,
         style: spouseStyle,
-        data: se.data,
+        data: { ...se.data, rawEdgeIds: [se.id] },
       })
       transformedEdges.push({
         id: `${se.id}-b`,
@@ -159,11 +159,15 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
         type: 'smoothstep',
         animated: false,
         style: spouseStyle,
-        data: se.data,
+        data: { ...se.data, rawEdgeIds: [se.id] },
       })
 
       // Junction → child edges
       for (const childId of allChildren) {
+        // Find parent edge(s) from either spouse to this child
+        const parentEdgeIds = parentEdges
+          .filter(pe => (pe.source === se.source || pe.source === se.target) && pe.target === childId)
+          .map(pe => pe.id)
         transformedEdges.push({
           id: `${junctionId}-${childId}`,
           source: junctionId,
@@ -173,7 +177,7 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
           type: 'smoothstep',
           animated: false,
           style: { stroke: '#667eea', strokeWidth: 2 },
-          data: { type: 'parent' },
+          data: { type: 'parent', rawEdgeIds: parentEdgeIds },
         })
       }
 
@@ -188,14 +192,14 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
     // Pass through unhandled spouse edges as-is
     for (const se of spouseEdges) {
       if (!handledSpouseEdgeIds.has(se.id)) {
-        transformedEdges.push(se)
+        transformedEdges.push({ ...se, data: { ...se.data, rawEdgeIds: [se.id] } })
       }
     }
 
     // Pass through unhandled parent edges as-is
     for (const pe of parentEdges) {
       if (!handledParentEdgeIds.has(pe.id)) {
-        transformedEdges.push(pe)
+        transformedEdges.push({ ...pe, data: { ...pe.data, rawEdgeIds: [pe.id] } })
       }
     }
 
@@ -482,6 +486,28 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
     }
   }, [connectMode])
 
+  const onEdgeClick = useCallback(async (_event: React.MouseEvent, edge: Edge) => {
+    const rawEdgeIds: string[] = edge.data?.rawEdgeIds || [edge.id]
+    const edgeType = edge.data?.type === 'spouse' ? 'spouse' : 'parent'
+    if (!confirm(`Delete this ${edgeType} connection?`)) return
+
+    if (!isDevBypass) {
+      const supabase = createClient()
+      for (const id of rawEdgeIds) {
+        const { error } = await supabase
+          .from('relationships')
+          .delete()
+          .eq('id', id)
+          .eq('tree_id', treeId)
+        if (error) {
+          console.error('Error deleting relationship:', error)
+        }
+      }
+    }
+
+    setEdges((eds) => eds.filter((e) => !rawEdgeIds.includes(e.id)))
+  }, [treeId, setEdges])
+
   const nodesWithHandlers = useMemo(() => {
     return displayNodes.map((node) => {
       if (node.type === 'junction') return node
@@ -507,6 +533,7 @@ export default function TreeCanvas({ initialMembers, initialRelationships, treeI
         onNodesChange={handleNodesChange}
         onNodeClick={onNodeClick}
         onNodeDragStop={onNodeDragStop}
+        onEdgeClick={onEdgeClick}
         onPaneClick={onPaneClick}
         onInit={onInit}
         nodeTypes={nodeTypes}
